@@ -81,7 +81,7 @@ class SplitTestModuleTest(XModuleXmlImportTest, PartitionTestCase):
         self.module_system.descriptor_runtime = self.course._runtime  # pylint: disable=protected-access
         self.course.runtime.export_fs = MemoryFS()
 
-        user = user=Mock(username='ma', email='ma@edx.org', is_staff=False, is_active=True)
+        user = Mock(username='ma', email='ma@edx.org', is_staff=False, is_active=True)
         self.partitions_service = StaticPartitionService(
             [
                 self.user_partition,
@@ -91,7 +91,7 @@ class SplitTestModuleTest(XModuleXmlImportTest, PartitionTestCase):
                     MockUserPartitionScheme()
                 )
             ],
-            user,
+            user=user,
             course_id=self.course.id,
             track_function=Mock(name='track_function'),
         )
