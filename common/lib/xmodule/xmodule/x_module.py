@@ -560,7 +560,7 @@ class XModuleMixin(XBlockMixin):
                 continue
 
             if field.scope.user == UserScope.ONE:
-                field._del_cached_value(self)
+                field._del_cached_value(self)  # pylint: disable=protected-access
 
         # Set the new xmodule_runtime and field_data (which are user-specific)
         self.xmodule_runtime = xmodule_runtime
@@ -647,10 +647,11 @@ class XModule(XModuleMixin, HTMLSnippet, XBlock):  # pylint: disable=abstract-me
         super(XModule, self).__init__(*args, **kwargs)
         self._loaded_children = None
         self.runtime.xmodule_instance = self
+        self._runtime = None
 
     @property
     def runtime(self):
-        return CombinedSystem(self._runtime, self.descriptor._runtime)
+        return CombinedSystem(self._runtime, self.descriptor._runtime)  # pylint: disable=protected-access
 
     @runtime.setter
     def runtime(self, value):

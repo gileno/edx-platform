@@ -240,10 +240,10 @@ class CourseInstantiationTests(ModuleStoreTestCase):
     def test_repeated_course_module_instantiation(self, loops, default_store, course_depth):
 
         with modulestore().default_store(default_store):
-            course = CourseFactory()
+            course = CourseFactory.create()
             chapter = ItemFactory(parent=course, category='chapter', graded=True)
             section = ItemFactory(parent=chapter, category='sequential')
-            problem = ItemFactory(parent=section, category='problem')
+            __ = ItemFactory(parent=section, category='problem')
 
         fake_request = self.factory.get(
             reverse('progress', kwargs={'course_id': unicode(course.id)})
@@ -264,5 +264,5 @@ class CourseInstantiationTests(ModuleStoreTestCase):
             )
             for chapter in course_module.get_children():
                 for section in chapter.get_children():
-                    for item in chapter.get_children():
+                    for item in section.get_children():
                         self.assertTrue(item.graded)
