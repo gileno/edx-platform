@@ -644,8 +644,9 @@ class XModule(XModuleMixin, HTMLSnippet, XBlock):  # pylint: disable=abstract-me
 
         # Set the descriptor first so that we can proxy to it
         self.descriptor = descriptor
-        super(XModule, self).__init__(*args, **kwargs)
         self._loaded_children = None
+        self._runtime = None
+        super(XModule, self).__init__(*args, **kwargs)
         self.runtime.xmodule_instance = self
         self._runtime = None
 
