@@ -61,6 +61,7 @@ urlpatterns = (
     url(r'^heartbeat$', include('heartbeat.urls')),
 
     url(r'^api/user/', include('openedx.core.djangoapps.user_api.urls')),
+    url(r'^api/profile_images/', include('openedx.core.djangoapps.profile_images.urls')),
 
     # Note: these are older versions of the User API that will eventually be
     # subsumed by api/user.
@@ -409,6 +410,7 @@ if settings.COURSEWARE_ENABLED:
         # Student Notes
         url(r'^courses/{}/edxnotes'.format(settings.COURSE_ID_PATTERN),
             include('edxnotes.urls'), name="edxnotes_endpoints"),
+
     )
 
     # allow course staff to change to student view of courseware
@@ -593,6 +595,7 @@ urlpatterns = patterns(*urlpatterns)
 
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
     # in debug mode, allow any template to be rendered (most useful for UX reference templates)
     urlpatterns += url(r'^template/(?P<template>.+)$', 'debug.views.show_reference_template'),
