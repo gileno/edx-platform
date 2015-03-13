@@ -118,7 +118,6 @@ if settings.FEATURES["ENABLE_MOBILE_REST_API"]:
         url(r'^api/val/v0/', include('edxval.urls')),
     )
 
-# if settings.FEATURES.get("MULTIPLE_ENROLLMENT_ROLES"):
 urlpatterns += (
     url(r'^verify_student/', include('verify_student.urls')),
     url(r'^course_modes/', include('course_modes.urls')),
