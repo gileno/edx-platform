@@ -47,6 +47,7 @@
             "annotator_1.2.9": "js/vendor/edxnotes/annotator-full.min",
             "date": "js/vendor/date",
             "backbone": "js/vendor/backbone-min",
+            "backbone-super": "js/vendor/backbone-super.min",
             "underscore.string": "js/vendor/underscore.string.min",
             // Files needed by OVA
             "annotator": "js/vendor/ova/annotator-full",
