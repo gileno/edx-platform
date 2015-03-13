@@ -612,6 +612,9 @@ class PayAndVerifyView(View):
         return (has_paid, bool(is_active))
 
 
+def create_order_with_ecommerce_service(user, course_mode):
+    return HttpResponseBadRequest('Not Implemented!')
+
 @require_POST
 @login_required
 def create_order(request):
@@ -675,6 +678,10 @@ def create_order(request):
 
     if amount < current_mode.min_price:
         return HttpResponseBadRequest(_("No selected price or selected price is below minimum."))
+
+    # TODO Branch to Oscar here!
+    if settings.FEATURES.get('CREATE_ORDERS_WITH_ECOMMERCE_SERVICE', False):
+        return create_order_with_ecommerce_service(request.user, current_mode)
 
     # I know, we should check this is valid. All kinds of stuff missing here
     cart = Order.get_cart_for_user(request.user)

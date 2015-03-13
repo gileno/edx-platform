@@ -22,13 +22,39 @@ from student.tests.factories import UserFactory, CourseModeFactory
 
 ECOMMERCE_API_URL = 'http://example.com/api'
 ECOMMERCE_API_SIGNING_KEY = 'edx'
-ORDER_NUMBER = "100004"
+ORDER_NUMBER = '100004'
 ECOMMERCE_API_SUCCESSFUL_BODY = json.dumps({'status': OrderStatus.COMPLETE, 'number': ORDER_NUMBER})
+
+
+class EcommerceServiceTestMixin(object):
+    def assertValidJWTAuthHeder(self, request, user, key):
+        """ Verifies that the JWT Authorization header is correct. """
+        expected_jwt = jwt.encode({'username': user.username, 'email': user.email}, key)
+        self.assertEqual(request.headers['Authorization'], 'JWT {}'.format(expected_jwt))
+
+    def assertValidOrderRequest(self, request, user, jwt_signing_key, sku):
+        """ Verifies that an order request to the E-Commerce Service is valid. """
+        self.assertValidJWTAuthHeder(request, user, jwt_signing_key)
+
+        self.assertEqual(request.body, 'sku={}'.format(sku))
+        self.assertEqual(request.headers['Content-Type'], 'application/json')
+
+    def _mock_ecommerce_api(self, status=200, body=None):
+        """
+        Mock calls to the E-Commerce API.
+
+        The calling test should be decorated with @httpretty.activate.
+        """
+        self.assertTrue(httpretty.is_enabled(), 'Test is missing @httpretty.activate decorator.')
+
+        url = ECOMMERCE_API_URL + '/orders/'
+        body = body or ECOMMERCE_API_SUCCESSFUL_BODY
+        httpretty.register_uri(httpretty.POST, url, status=status, body=body)
 
 
 @ddt
 @override_settings(ECOMMERCE_API_URL=ECOMMERCE_API_URL, ECOMMERCE_API_SIGNING_KEY=ECOMMERCE_API_SIGNING_KEY)
-class OrdersViewTests(ModuleStoreTestCase):
+class OrdersViewTests(EcommerceServiceTestMixin, ModuleStoreTestCase):
     """
     Tests for the commerce orders view.
     """
@@ -48,18 +74,6 @@ class OrdersViewTests(ModuleStoreTestCase):
         """
         course_id = unicode(course_id or self.course.id)
         return self.client.post(self.url, {'course_id': course_id})
-
-    def _mock_ecommerce_api(self, status=200, body=None):
-        """
-        Mock calls to the E-Commerce API.
-
-        The calling test should be decorated with @httpretty.activate.
-        """
-        self.assertTrue(httpretty.is_enabled(), 'Test is missing @httpretty.activate decorator.')
-
-        url = ECOMMERCE_API_URL + '/orders/'
-        body = body or ECOMMERCE_API_SUCCESSFUL_BODY
-        httpretty.register_uri(httpretty.POST, url, status=status, body=body)
 
     def assertResponseMessage(self, response, expected_msg):
         """ Asserts the detail field in the response's JSON body equals the expected message. """
@@ -184,13 +198,8 @@ class OrdersViewTests(ModuleStoreTestCase):
         # Verify the correct information was passed to the E-Commerce API
         request = httpretty.last_request()
         sku = CourseMode.objects.filter(course_id=self.course.id, mode_slug='honor', sku__isnull=False)[0].sku
-        self.assertEqual(request.body, 'sku={}'.format(sku))
-        self.assertEqual(request.headers['Content-Type'], 'application/json')
+        self.assertValidOrderRequest(request, self.user, ECOMMERCE_API_SIGNING_KEY, sku)
 
-        # Verify the JWT is correct
-        expected_jwt = jwt.encode({'username': self.user.username, 'email': self.user.email},
-                                  ECOMMERCE_API_SIGNING_KEY)
-        self.assertEqual(request.headers['Authorization'], 'JWT {}'.format(expected_jwt))
 
     @httpretty.activate
     def test_order_not_complete(self):

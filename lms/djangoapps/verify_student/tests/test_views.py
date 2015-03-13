@@ -3,13 +3,14 @@
 Tests of verify_student views.
 """
 import json
-import mock
 import urllib
-import decimal
+from datetime import timedelta, datetime
+from django.test.utils import override_settings
+import httpretty
+
+import mock
 from mock import patch, Mock
 import pytz
-from datetime import timedelta, datetime
-
 import ddt
 from django.test.client import Client
 from django.test import TestCase
@@ -18,14 +19,15 @@ from django.core.urlresolvers import reverse
 from django.core.exceptions import ObjectDoesNotExist
 from django.core import mail
 from bs4 import BeautifulSoup
-
-from openedx.core.djangoapps.user_api.accounts.api import get_account_settings
 from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 from xmodule.modulestore.django import modulestore
 from xmodule.modulestore import ModuleStoreEnum
 from opaque_keys.edx.locations import SlashSeparatedCourseKey
 from opaque_keys.edx.locator import CourseLocator
+
+from openedx.core.djangoapps.user_api.accounts.api import get_account_settings
+from commerce.tests import EcommerceServiceTestMixin, ECOMMERCE_API_URL, ECOMMERCE_API_SIGNING_KEY
 from student.tests.factories import UserFactory, CourseEnrollmentFactory
 from student.models import CourseEnrollment
 from course_modes.tests.factories import CourseModeFactory
@@ -840,7 +842,7 @@ class TestPayAndVerifyView(UrlResetMixin, ModuleStoreTestCase):
         self.assertEqual(response_dict['course_name'], mode_display_name)
 
 
-class TestCreateOrder(ModuleStoreTestCase):
+class TestCreateOrder(EcommerceServiceTestMixin, ModuleStoreTestCase):
     """
     Tests for the create order view.
     """
@@ -854,17 +856,23 @@ class TestCreateOrder(ModuleStoreTestCase):
             CourseModeFactory(mode_slug=mode, course_id=self.course.id, min_price=min_price)
         self.client.login(username="test", password="test")
 
+    def _post(self, data):
+        """
+        POST to the view being tested and return the response.
+        """
+        url = reverse('verify_student_create_order')
+        return self.client.post(url, data)
+
     def test_create_order_already_verified(self):
         # Verify the student so we don't need to submit photos
         self._verify_student()
 
         # Create an order
-        url = reverse('verify_student_create_order')
         params = {
             'course_id': unicode(self.course.id),
             'contribution': 100
         }
-        response = self.client.post(url, params)
+        response = self._post(params)
         self.assertEqual(response.status_code, 200)
 
         # Verify that the information will be sent to the correct callback URL
@@ -885,11 +893,8 @@ class TestCreateOrder(ModuleStoreTestCase):
         CourseModeFactory(mode_slug="professional", course_id=course.id, min_price=10)
 
         # Create an order for a prof ed course
-        url = reverse('verify_student_create_order')
-        params = {
-            'course_id': unicode(course.id)
-        }
-        response = self.client.post(url, params)
+        params = {'course_id': unicode(course.id)}
+        response = self._post(params)
         self.assertEqual(response.status_code, 200)
 
         # Verify that the course ID and transaction type are included in "merchant-defined data"
@@ -904,11 +909,8 @@ class TestCreateOrder(ModuleStoreTestCase):
         CourseModeFactory(mode_slug="no-id-professional", course_id=course.id, min_price=10)
 
         # Create an order for a prof ed course
-        url = reverse('verify_student_create_order')
-        params = {
-            'course_id': unicode(course.id)
-        }
-        response = self.client.post(url, params)
+        params = {'course_id': unicode(course.id)}
+        response = self._post(params)
         self.assertEqual(response.status_code, 200)
 
         # Verify that the course ID and transaction type are included in "merchant-defined data"
@@ -924,11 +926,8 @@ class TestCreateOrder(ModuleStoreTestCase):
         CourseModeFactory(mode_slug="professional", course_id=course.id, min_price=10)
 
         # Create an order for a prof ed course
-        url = reverse('verify_student_create_order')
-        params = {
-            'course_id': unicode(course.id)
-        }
-        response = self.client.post(url, params)
+        params = {'course_id': unicode(course.id)}
+        response = self._post(params)
         self.assertEqual(response.status_code, 200)
 
         # Verify that the course ID and transaction type are included in "merchant-defined data"
@@ -941,12 +940,11 @@ class TestCreateOrder(ModuleStoreTestCase):
         self._verify_student()
 
         # Create an order
-        url = reverse('verify_student_create_order')
         params = {
             'course_id': unicode(self.course.id),
             'contribution': '1.23'
         }
-        self.client.post(url, params)
+        self._post(params)
 
         # Verify that the client's session contains the new donation amount
         self.assertNotIn('donation_for_course', self.client.session)
@@ -957,6 +955,44 @@ class TestCreateOrder(ModuleStoreTestCase):
         attempt.mark_ready()
         attempt.submit()
         attempt.approve()
+
+    @httpretty.activate
+    @patch.dict(settings.FEATURES, {'CREATE_ORDERS_WITH_ECOMMERCE_SERVICE': True})
+    @override_settings(ECOMMERCE_API_URL=ECOMMERCE_API_URL, ECOMMERCE_API_SIGNING_KEY=ECOMMERCE_API_SIGNING_KEY)
+    def test_create_order_with_ecommerce_service(self):
+        """ Verifies that the view communicates with the E-Commerce Service to create orders. """
+        # Keep track of the original number of orders to verify the old code is not being called.
+        order_count = Order.objects.count()
+
+        # TODO Mock the E-Commerce Service response
+        self._mock_ecommerce_api()
+
+        # POST to view
+        self._verify_student()
+        params = {'course_id': unicode(self.course.id), 'contribution': 100}
+        response = self._post(params)
+
+        # TODO Verify the response is correct.
+        self.assertEqual(response.status_code, 200)
+
+        # TODO Verify old code is not called (e.g. no Order object created in LMS)
+        self.assertEqual(order_count, Order.objects.count())
+
+        # TODO Verify API is called with correct JWT
+        request = httpretty.last_request()
+        self.assertValidJWTAuthHeder(request, self.user, ECOMMERCE_API_SIGNING_KEY)
+
+        # TODO Verify API is called with correct SKU
+
+    @httpretty.activate
+    @patch.dict(settings.FEATURES, {'CREATE_ORDERS_WITH_ECOMMERCE_SERVICE': True})
+    @override_settings(ECOMMERCE_API_URL=ECOMMERCE_API_URL, ECOMMERCE_API_SIGNING_KEY=ECOMMERCE_API_SIGNING_KEY)
+    def test_create_order_with_ecommerce_service_errors(self):
+        """
+        Verifies that the view communicates with the E-Commerce Service to create orders, and handles errors
+        appropriately.
+        """
+        self.fail()
 
 
 class TestCreateOrderView(ModuleStoreTestCase):
