@@ -717,6 +717,27 @@ class CourseEnrollment(models.Model):
         return enrollment
 
     @classmethod
+    def get_enrollment(cls, user, course_key):
+        """Returns a CoursewareEnrollment object.
+
+        Args:
+            User : is a Django User object.
+            course_id : is our usual course_id string (e.g. "edX/Test101/2013_Fall)
+
+        Returns:
+            Course enrollment object or None
+        """
+        assert(isinstance(course_key, CourseKey))
+
+        try:
+            return CourseEnrollment.objects.get(
+                user=user,
+                course_id=course_key
+            )
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
     def num_enrolled_in(cls, course_id):
         """
         Returns the count of active enrollments in a course.

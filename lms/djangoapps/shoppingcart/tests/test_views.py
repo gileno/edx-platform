@@ -1170,7 +1170,7 @@ class ShoppingCartViewsTests(ModuleStoreTestCase):
         self.assertFalse(context['reg_code_info_list'][1]['is_redeemed'])
 
     @patch('shoppingcart.views.render_to_response', render_mock)
-    def test_show_receipt_success_with_upgrade(self):
+    def test_show_receipt_success(self):
 
         reg_item = PaidCourseRegistration.add_to_order(self.cart, self.course_key)
         cert_item = CertificateItem.add_to_order(self.cart, self.verified_course_key, self.cost, 'honor')
@@ -1178,17 +1178,8 @@ class ShoppingCartViewsTests(ModuleStoreTestCase):
 
         self.login_user()
 
-        # When we come from the upgrade flow, we'll have a session variable showing that
-        s = self.client.session
-        s['attempting_upgrade'] = True
-        s.save()
-
         self.mock_tracker.emit.reset_mock()  # pylint: disable=maybe-no-member
         resp = self.client.get(reverse('shoppingcart.views.show_receipt', args=[self.cart.id]))
-
-        # Once they've upgraded, they're no longer *attempting* to upgrade
-        attempting_upgrade = self.client.session.get('attempting_upgrade', False)
-        self.assertFalse(attempting_upgrade)
 
         self.assertEqual(resp.status_code, 200)
         self.assertIn('FirstNameTesting123', resp.content)
@@ -1203,17 +1194,6 @@ class ShoppingCartViewsTests(ModuleStoreTestCase):
         self.assertIn(reg_item, context['shoppingcart_items'][0])
         self.assertIn(cert_item, context['shoppingcart_items'][1])
         self.assertFalse(context['any_refunds'])
-
-        course_enrollment = CourseEnrollment.get_or_create_enrollment(self.user, self.course_key)
-        course_enrollment.emit_event('edx.course.enrollment.upgrade.succeeded')
-        self.mock_tracker.emit.assert_any_call(  # pylint: disable=maybe-no-member
-            'edx.course.enrollment.upgrade.succeeded',
-            {
-                'user_id': course_enrollment.user.id,
-                'course_id': course_enrollment.course_id.to_deprecated_string(),
-                'mode': course_enrollment.mode
-            }
-        )
 
     @patch('shoppingcart.views.render_to_response', render_mock)
     def test_show_receipt_success_refund(self):
@@ -1271,6 +1251,42 @@ class ShoppingCartViewsTests(ModuleStoreTestCase):
         self._assert_404(reverse('shoppingcart.views.update_user_cart', args=[]))
         self._assert_404(reverse('shoppingcart.views.reset_code_redemption', args=[]), use_post=True)
         self._assert_404(reverse('shoppingcart.views.billing_details', args=[]))
+
+    def test_upgrade_postpay_callback_emits_ga_event(self):
+        # Create other carts first
+
+        Order.get_cart_for_user(self.user).start_purchase()
+        # Purchase a verified certificate
+        self.cart = Order.get_cart_for_user(self.user)
+        CertificateItem.add_to_order(self.cart, self.verified_course_key, self.cost, 'honor')
+        self.cart.start_purchase()
+
+        self.login_user()
+        # setting the attempting upgrade session value.
+        s = self.client.session
+        s['attempting_upgrade'] = True
+        s.save()
+
+        # Simulate hitting the post-pay callback
+        with patch('shoppingcart.views.process_postpay_callback') as mock_process:
+            mock_process.return_value = {'success': True, 'order': self.cart}
+            url = reverse('shoppingcart.views.postpay_callback')
+
+            self.assertTrue(self.client.session.get('attempting_upgrade'))
+            __ = self.client.post(url, follow=True)
+            self.assertFalse(self.client.session.get('attempting_upgrade'))
+
+            course_enrollment = CourseEnrollment.get_or_create_enrollment(self.user, self.course_key)
+            course_enrollment.emit_event('edx.course.enrollment.upgrade.succeeded')
+
+            self.mock_tracker.emit.assert_any_call(  # pylint: disable=maybe-no-member
+                'edx.course.enrollment.upgrade.succeeded',
+                {
+                    'user_id': course_enrollment.user.id,
+                    'course_id': course_enrollment.course_id.to_deprecated_string(),
+                    'mode': course_enrollment.mode
+                }
+            )
 
 
 class ReceiptRedirectTest(ModuleStoreTestCase):
