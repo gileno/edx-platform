@@ -17,7 +17,7 @@ from student.models import UserProfile
 
 from ..errors import (
     UserAPIInternalError, UserAPIRequestError, UserNotFound, UserNotAuthorized,
-    PreferenceNotFound, PreferenceValidationError, PreferenceUpdateError
+    PreferenceValidationError, PreferenceUpdateError
 )
 from ..helpers import intercept_errors
 from ..models import UserOrgTag, UserPreference
@@ -38,8 +38,8 @@ def get_user_preference(requesting_user, preference_key, username=None):
             `requesting_user.username` is assumed.
 
     Returns:
-         The value for the user preference which is always a string. If no preference exists
-         with key `preference_key`, returns None.
+         The value for the user preference which is always a string, or None if a preference
+         has not been specified.
 
     Raises:
          UserNotFound: no user with username `username` exists (or `requesting_user.username` if
@@ -48,7 +48,7 @@ def get_user_preference(requesting_user, preference_key, username=None):
          UserAPIInternalError: the operation failed due to an unexpected error.
     """
     existing_user = _get_user(requesting_user, username, allow_staff=True)
-    return UserPreference.get_preference(existing_user, preference_key)
+    return UserPreference.get_value(existing_user, preference_key)
 
 
 @intercept_errors(UserAPIInternalError, ignore_errors=[UserAPIRequestError])
@@ -107,28 +107,32 @@ def update_user_preferences(requesting_user, update, username=None):
 
     # First validate each preference setting
     errors = {}
+    serializers = {}
     for preference_key in update.keys():
         preference_value = update[preference_key]
         if preference_value is not None:
             try:
-                _validate_user_preference(existing_user, preference_key, preference_key)
+                serializer = _validate_user_preference(existing_user, preference_key, preference_value)
+                serializers[preference_key] = serializer
             except PreferenceValidationError as error:
-                developer_message = error.preference_errors[preference_key]["developer_message"]
+                preference_error = error.preference_errors[preference_key]
                 errors[preference_key] = {
-                    "developer_message": developer_message
+                    "developer_message": preference_error["developer_message"],
+                    "user_message": preference_error["user_message"],
                 }
     if errors:
         raise PreferenceValidationError(errors)
     # Then perform the patch
-    try:
-        for preference_key in update.keys():
-            preference_value = update[preference_key]
-            if preference_value is not None:
-                UserPreference.set_preference(existing_user, preference_key, preference_value)
-            else:
-                UserPreference.delete_preference(existing_user, preference_key)
-    except Exception as error:
-        raise PreferenceUpdateError(error.message)
+    for preference_key in update.keys():
+        preference_value = update[preference_key]
+        if preference_value is not None:
+            try:
+                serializer = serializers[preference_key]
+                serializer.save()
+            except Exception as error:
+                raise _create_preference_update_error(preference_key, preference_value, error)
+        else:
+            delete_user_preference(requesting_user, preference_key)
 
 
 @intercept_errors(UserAPIInternalError, ignore_errors=[UserAPIRequestError])
@@ -158,16 +162,11 @@ def set_user_preference(requesting_user, preference_key, preference_value, usern
         UserAPIInternalError: the operation failed due to an unexpected error.
     """
     existing_user = _get_user(requesting_user, username)
-    if preference_value is None or preference_value == '':
-        message = _('Preference {preference_key} cannot be set to an empty value').format(
-            preference_key=preference_key
-        )
-        raise PreferenceUpdateError(message, user_message=message)
-    _validate_user_preference(existing_user, preference_key, preference_key)
+    serializer = _validate_user_preference(existing_user, preference_key, preference_value)
     try:
-        UserPreference.set_preference(existing_user, preference_key, preference_value)
+        serializer.save()
     except Exception as error:
-        raise PreferenceUpdateError(error.message)
+        raise _create_preference_update_error(preference_key, preference_value, error)
 
 
 @intercept_errors(UserAPIInternalError, ignore_errors=[UserAPIRequestError])
@@ -199,11 +198,21 @@ def delete_user_preference(requesting_user, preference_key, username=None):
     """
     existing_user = _get_user(requesting_user, username)
     try:
-        UserPreference.delete_preference(existing_user, preference_key)
-    except PreferenceNotFound:
+        user_preference = UserPreference.objects.get(user=existing_user, key=preference_key)
+    except ObjectDoesNotExist:
         return False
+
+    try:
+        user_preference.delete()
     except Exception as error:
-        raise PreferenceUpdateError(error.message)
+        raise PreferenceUpdateError(
+            developer_message=u"Delete failed for user preference '{preference_key}': {error}".format(
+                preference_key=preference_key, error=error
+            ),
+            user_message=_(u"Delete failed for user preference '{preference_key}'.").format(
+                preference_key=preference_key
+            ),
+        )
     return True
 
 
@@ -312,22 +321,58 @@ def _validate_user_preference(user, preference_key, preference_value):
 
     Raises:
         PreferenceValidationError: the supplied key and/or value for a user preference are invalid.
+
+    Returns:
+        A serializer that can be used to save the user preference.
     """
     try:
-        user_preference = UserPreference.objects.get(user=user, key=preference_key)
+        existing_user_preference = UserPreference.objects.get(user=user, key=preference_key)
     except ObjectDoesNotExist:
-        user_preference = None
+        existing_user_preference = None
     new_data = {
         "user": user.id,
         "key": preference_key,
         "value": preference_value,
     }
-    if user_preference:
-        serializer = RawUserPreferenceSerializer(user_preference, data=new_data)
+    if preference_value is None or preference_value == '':
+        message = _(u"Preference '{preference_key}' cannot be set to an empty value.").format(
+            preference_key=preference_key
+        )
+        raise PreferenceValidationError({
+            preference_key: {"developer_message": message, "user_message": message}
+        })
+    if existing_user_preference:
+        serializer = RawUserPreferenceSerializer(existing_user_preference, data=new_data)
     else:
         serializer = RawUserPreferenceSerializer(data=new_data)
     if not serializer.is_valid():
-        error_message = u"The user preference has the following errors: {errors}".format(errors=serializer.errors)
+        developer_message = u"Value '{preference_value}' not valid for preference '{preference_key}': {error}".format(
+            preference_key=preference_key, preference_value=preference_value, error=serializer.errors
+        )
+        if serializer.errors["key"]:
+            user_message = _(u"Invalid user preference key '{preference_key}'.").format(
+                preference_key=preference_key
+            )
+        else:
+            user_message = _(u"Value '{preference_value}' is not valid for user preference '{preference_key}'.").format(
+                preference_key=preference_key, preference_value=preference_value
+            )
         raise PreferenceValidationError({
-            preference_key: { "developer_message": error_message }
+            preference_key: {
+                "developer_message": developer_message,
+                "user_message": user_message,
+            }
         })
+    return serializer
+
+
+def _create_preference_update_error(preference_key, preference_value, error):
+    """ Creates a PreferenceUpdateError with developer_message and user_message. """
+    return PreferenceUpdateError(
+        developer_message=u"Save failed for user preference '{key}' with value '{value}': {error}".format(
+            key=preference_key, value=preference_value, error=error
+        ),
+        user_message=_(u"Save failed for user preference '{key}' with value '{value}'.").format(
+            key=preference_key, value=preference_value
+        ),
+    )

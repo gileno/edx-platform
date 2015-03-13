@@ -21,7 +21,7 @@ from xmodule.modulestore.tests.factories import CourseFactory
 
 from ...accounts.api import create_account
 from ...errors import UserNotFound, UserNotAuthorized, PreferenceValidationError, PreferenceUpdateError
-from ...models import UserPreference, UserProfile, UserOrgTag
+from ...models import UserProfile, UserOrgTag
 from ...preferences.api import (
     get_user_preference, get_user_preferences, set_user_preference, update_user_preferences, delete_user_preference,
     update_email_opt_in
@@ -46,7 +46,7 @@ class TestPreferenceAPI(TestCase):
         self.no_such_user.username = "no_such_user"
         self.test_preference_key = "test_key"
         self.test_preference_value = "test_value"
-        UserPreference.set_preference(self.user, self.test_preference_key, self.test_preference_value)
+        set_user_preference(self.user, self.test_preference_key, self.test_preference_value)
 
     def test_get_user_preference(self):
         """
@@ -106,6 +106,11 @@ class TestPreferenceAPI(TestCase):
             get_user_preference(self.user, self.test_preference_key),
             "new_value"
         )
+        set_user_preference(self.user, self.test_preference_key, "new_value", username=self.user.username)
+        self.assertEqual(
+            get_user_preference(self.user, self.test_preference_key),
+            "new_value"
+        )
 
     @patch('openedx.core.djangoapps.user_api.models.UserPreference.save')
     def test_set_user_preference_errors(self, user_preference_save):
@@ -125,12 +130,29 @@ class TestPreferenceAPI(TestCase):
             set_user_preference(self.different_user, self.test_preference_key, "new_value", username=self.user.username)
 
         too_long_key = "x" * 256
-        with self.assertRaises(PreferenceValidationError):
+        with self.assertRaises(PreferenceValidationError) as context_manager:
             set_user_preference(self.user, too_long_key, "new_value")
+        errors = context_manager.exception.preference_errors
+        self.assertEqual(len(errors.keys()), 1)
+        self.assertEqual(
+            errors[too_long_key],
+            {
+                "developer_message": get_expected_validation_developer_message(too_long_key, "new_value"),
+                "user_message": get_expected_key_error_user_message(too_long_key, "new_value"),
+            }
+        )
 
         user_preference_save.side_effect = [Exception, None]
-        with self.assertRaises(PreferenceUpdateError):
-            set_user_preference(self.user, self.test_preference_key, "new_value")
+        with self.assertRaises(PreferenceUpdateError) as context_manager:
+            set_user_preference(self.user, u"new_key_ȻħȺɍłɇs", u"new_value_ȻħȺɍłɇs")
+        self.assertEqual(
+            context_manager.exception.developer_message,
+            u"Save failed for user preference 'new_key_ȻħȺɍłɇs' with value 'new_value_ȻħȺɍłɇs': "
+        )
+        self.assertEqual(
+            context_manager.exception.user_message,
+            u"Save failed for user preference 'new_key_ȻħȺɍłɇs' with value 'new_value_ȻħȺɍłɇs'."
+        )
 
     def test_update_user_preferences(self):
         """
@@ -139,7 +161,12 @@ class TestPreferenceAPI(TestCase):
         expected_user_preferences = {
             self.test_preference_key: "new_value",
         }
-        update_user_preferences(self.user, expected_user_preferences), expected_user_preferences
+        set_user_preference(self.user, self.test_preference_key, "new_value")
+        self.assertEqual(
+            get_user_preference(self.user, self.test_preference_key),
+            "new_value"
+        )
+        set_user_preference(self.user, self.test_preference_key, "new_value", username=self.user.username)
         self.assertEqual(
             get_user_preference(self.user, self.test_preference_key),
             "new_value"
@@ -167,22 +194,49 @@ class TestPreferenceAPI(TestCase):
             update_user_preferences(self.different_user, update_data, username=self.user.username)
 
         too_long_key = "x" * 256
-        with self.assertRaises(PreferenceValidationError):
+        with self.assertRaises(PreferenceValidationError) as context_manager:
             update_user_preferences(self.user, { too_long_key: "new_value"})
+        errors = context_manager.exception.preference_errors
+        self.assertEqual(len(errors.keys()), 1)
+        self.assertEqual(
+            errors[too_long_key],
+            {
+                "developer_message": get_expected_validation_developer_message(too_long_key, "new_value"),
+                "user_message": get_expected_key_error_user_message(too_long_key, "new_value"),
+            }
+        )
 
         user_preference_save.side_effect = [Exception, None]
-        with self.assertRaises(PreferenceUpdateError):
+        with self.assertRaises(PreferenceUpdateError) as context_manager:
             update_user_preferences(self.user, { self.test_preference_key: "new_value"})
+        self.assertEqual(
+            context_manager.exception.developer_message,
+            u"Save failed for user preference 'test_key' with value 'new_value': "
+        )
+        self.assertEqual(
+            context_manager.exception.user_message,
+            u"Save failed for user preference 'test_key' with value 'new_value'."
+        )
 
         user_preference_delete.side_effect = [Exception, None]
-        with self.assertRaises(PreferenceUpdateError):
-            update_user_preferences(self.user, { self.test_preference_key: None })
+        with self.assertRaises(PreferenceUpdateError) as context_manager:
+            update_user_preferences(self.user, {self.test_preference_key: None})
+        self.assertEqual(
+            context_manager.exception.developer_message,
+            u"Delete failed for user preference 'test_key': "
+        )
+        self.assertEqual(
+            context_manager.exception.user_message,
+            u"Delete failed for user preference 'test_key'."
+        )
 
     def test_delete_user_preference(self):
         """
         Verifies the basic behavior of delete_user_preference.
         """
         self.assertTrue(delete_user_preference(self.user, self.test_preference_key))
+        set_user_preference(self.user, self.test_preference_key, self.test_preference_value)
+        self.assertTrue(delete_user_preference(self.user, self.test_preference_key, username=self.user.username))
         self.assertFalse(delete_user_preference(self.user, "no_such_key"))
 
     @patch('openedx.core.djangoapps.user_api.models.UserPreference.delete')
@@ -203,8 +257,16 @@ class TestPreferenceAPI(TestCase):
             delete_user_preference(self.different_user, self.test_preference_key, username=self.user.username)
 
         user_preference_delete.side_effect = [Exception, None]
-        with self.assertRaises(PreferenceUpdateError):
+        with self.assertRaises(PreferenceUpdateError) as context_manager:
             delete_user_preference(self.user, self.test_preference_key)
+        self.assertEqual(
+            context_manager.exception.developer_message,
+            u"Delete failed for user preference 'test_key': "
+        )
+        self.assertEqual(
+            context_manager.exception.user_message,
+            u"Delete failed for user preference 'test_key'."
+        )
 
 
 @ddt.ddt
@@ -322,3 +384,22 @@ class UpdateEmailOptInTests(ModuleStoreTestCase):
         else:
             return True
 
+
+def get_expected_validation_developer_message(preference_key, preference_value):
+    """
+    Returns the expected dict of validation messages for the specified key.
+    """
+    return u"Value '{preference_value}' not valid for preference '{preference_key}': {error}".format(
+        preference_key=preference_key,
+        preference_value=preference_value,
+        error={
+            "key": [u"Ensure this value has at most 255 characters (it has 256)."]
+        }
+    )
+
+
+def get_expected_key_error_user_message(preference_key, preference_value):
+    """
+    Returns the expected user message for an invalid key.
+    """
+    return u"Invalid user preference key '{preference_key}'.".format(preference_key=preference_key)

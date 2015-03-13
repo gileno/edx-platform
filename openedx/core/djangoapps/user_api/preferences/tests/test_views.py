@@ -10,8 +10,9 @@ import json
 from django.core.urlresolvers import reverse
 from django.conf import settings
 
-from openedx.core.djangoapps.user_api.models import UserPreference
-from openedx.core.djangoapps.user_api.accounts.tests.test_views import UserAPITestCase
+from ...accounts.tests.test_views import UserAPITestCase
+from ..api import set_user_preference
+from .test_api import get_expected_validation_developer_message, get_expected_key_error_user_message
 
 TOO_LONG_PREFERENCE_KEY = u"x" * 256
 
@@ -83,8 +84,8 @@ class TestPreferencesAPI(UserAPITestCase):
         user can get the preferences information for other users.
         """
         # Create some test preferences values.
-        UserPreference.set_preference(self.user, "dict_pref", {"int_key": 10})
-        UserPreference.set_preference(self.user, "string_pref", "value")
+        set_user_preference(self.user, "dict_pref", {"int_key": 10})
+        set_user_preference(self.user, "string_pref", "value")
 
         # Log in the client and do the GET.
         client = self.login_client(api_client, user)
@@ -151,9 +152,9 @@ class TestPreferencesAPI(UserAPITestCase):
         Test that a client (logged in) can update her own preferences information.
         """
         # Create some test preferences values.
-        UserPreference.set_preference(self.user, "dict_pref", {"int_key": 10})
-        UserPreference.set_preference(self.user, "string_pref", "value")
-        UserPreference.set_preference(self.user, "extra_pref", "extra_value")
+        set_user_preference(self.user, "dict_pref", {"int_key": 10})
+        set_user_preference(self.user, "string_pref", "value")
+        set_user_preference(self.user, "extra_pref", "extra_value")
 
         # Send the patch request
         self.client.login(username=self.user.username, password=self.test_password)
@@ -177,9 +178,9 @@ class TestPreferencesAPI(UserAPITestCase):
         Test that a client (logged in) receives appropriate errors for a bad update.
         """
         # Create some test preferences values.
-        UserPreference.set_preference(self.user, "dict_pref", {"int_key": 10})
-        UserPreference.set_preference(self.user, "string_pref", "value")
-        UserPreference.set_preference(self.user, "extra_pref", "extra_value")
+        set_user_preference(self.user, "dict_pref", {"int_key": 10})
+        set_user_preference(self.user, "string_pref", "value")
+        set_user_preference(self.user, "extra_pref", "extra_value")
 
         # Send the patch request
         self.client.login(username=self.user.username, password=self.test_password)
@@ -189,18 +190,26 @@ class TestPreferencesAPI(UserAPITestCase):
                 "string_pref": "updated_value",
                 TOO_LONG_PREFERENCE_KEY: "new_value",
                 "new_pref": "new_value",
+                u"empty_pref_ȻħȺɍłɇs": "",
             },
             expected_status=400
         )
-        expected_message = u"The user preference has the following errors: " \
-                           "{'key': [u'Ensure this value has at most 255 characters (it has 256).']}"
+        self.assertTrue(response.data.get("field_errors", None))
+        field_errors = response.data["field_errors"]
         self.assertEquals(
-            response.data,
+            field_errors,
             {
-                "field_errors": {
-                    TOO_LONG_PREFERENCE_KEY: {
-                        "developer_message": expected_message
-                    }
+                TOO_LONG_PREFERENCE_KEY: {
+                    "developer_message": get_expected_validation_developer_message(
+                        TOO_LONG_PREFERENCE_KEY, "new_value"
+                    ),
+                    "user_message": get_expected_key_error_user_message(
+                        TOO_LONG_PREFERENCE_KEY, "new_value"
+                    ),
+                },
+                u"empty_pref_ȻħȺɍłɇs": {
+                    "developer_message": u"Preference 'empty_pref_ȻħȺɍłɇs' cannot be set to an empty value.",
+                    "user_message": u"Preference 'empty_pref_ȻħȺɍłɇs' cannot be set to an empty value.",
                 },
             }
         )
@@ -250,9 +259,9 @@ class TestPreferencesAPI(UserAPITestCase):
         Test that a client (logged in) cannot update preferences for another user.
         """
         # Create some test preferences values.
-        UserPreference.set_preference(self.user, "dict_pref", {"int_key": 10})
-        UserPreference.set_preference(self.user, "string_pref", "value")
-        UserPreference.set_preference(self.user, "extra_pref", "extra_value")
+        set_user_preference(self.user, "dict_pref", {"int_key": 10})
+        set_user_preference(self.user, "string_pref", "value")
+        set_user_preference(self.user, "extra_pref", "extra_value")
 
         # Send the patch request
         client = self.login_client(api_client, user)
@@ -277,7 +286,7 @@ class TestPreferencesDetailAPI(UserAPITestCase):
         super(TestPreferencesDetailAPI, self).setUp()
         self.test_pref_key = "test_key"
         self.test_pref_value = "test_value"
-        UserPreference.set_preference(self.user, self.test_pref_key, self.test_pref_value)
+        set_user_preference(self.user, self.test_pref_key, self.test_pref_value)
         self.url_endpoint_name = "preferences_detail_api"
         self._set_url(self.test_pref_key)
 
@@ -351,7 +360,7 @@ class TestPreferencesDetailAPI(UserAPITestCase):
         self.assertEqual(self.test_pref_value, response.data)
 
         # Test a different value.
-        UserPreference.set_preference(self.user, "dict_pref", {"int_key": 10})
+        set_user_preference(self.user, "dict_pref", {"int_key": 10})
         self._set_url("dict_pref")
         response = self.send_get(client)
         self.assertEqual("{'int_key': 10}", response.data)
@@ -377,8 +386,8 @@ class TestPreferencesDetailAPI(UserAPITestCase):
         self.assertEqual(
             response.data,
             {
-                "developer_message": u"Preference new_key cannot be set to an empty value",
-                "user_message": u"Preference new_key cannot be set to an empty value"
+                "developer_message": u"Preference 'new_key' cannot be set to an empty value.",
+                "user_message": u"Preference 'new_key' cannot be set to an empty value."
             }
         )
         self.send_get(self.client, expected_status=404)
@@ -395,8 +404,10 @@ class TestPreferencesDetailAPI(UserAPITestCase):
         response = self.send_put(self.client, new_value, expected_status=400)
         self.assertEquals(
             response.data,
-            "The user preference has the following errors: "
-            "{'key': [u'Ensure this value has at most 255 characters (it has 256).']}"
+            {
+                "developer_message": get_expected_validation_developer_message(too_long_preference_key, new_value),
+                "user_message": get_expected_key_error_user_message(too_long_preference_key, new_value),
+            }
         )
 
     @ddt.data(
@@ -451,8 +462,8 @@ class TestPreferencesDetailAPI(UserAPITestCase):
         self.assertEqual(
             response.data,
             {
-                "developer_message": u"Preference test_key cannot be set to an empty value",
-                "user_message": u"Preference test_key cannot be set to an empty value"
+                "developer_message": u"Preference 'test_key' cannot be set to an empty value.",
+                "user_message": u"Preference 'test_key' cannot be set to an empty value."
             }
         )
         response = self.send_get(self.client)

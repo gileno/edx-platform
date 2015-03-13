@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase, APIClient
 from student.tests.factories import UserFactory
 from student.models import UserProfile, PendingEmailChange
 from openedx.core.djangoapps.user_api.accounts import ACCOUNT_VISIBILITY_PREF_KEY
-from openedx.core.djangoapps.user_api.models import UserPreference
+from openedx.core.djangoapps.user_api.preferences.api import set_user_preference
 from .. import PRIVATE_VISIBILITY, ALL_USERS_VISIBILITY
 
 
@@ -218,7 +218,7 @@ class TestAccountAPI(UserAPITestCase):
         client = self.login_client(api_client, requesting_username)
 
         # Update user account visibility setting.
-        UserPreference.set_preference(self.user, ACCOUNT_VISIBILITY_PREF_KEY, preference_visibility)
+        set_user_preference(self.user, ACCOUNT_VISIBILITY_PREF_KEY, preference_visibility)
         self.create_mock_profile(self.user)
         response = self.send_get(client)
 
@@ -298,12 +298,12 @@ class TestAccountAPI(UserAPITestCase):
         self.assertEqual(404, response.status_code)
 
     @ddt.data(
-        ("gender", "f", "not a gender", "Select a valid choice. not a gender is not one of the available choices."),
-        ("level_of_education", "none", "x", "Select a valid choice. x is not one of the available choices."),
-        ("country", "GB", "XY", "Select a valid choice. XY is not one of the available choices."),
-        ("year_of_birth", 2009, "not_an_int", "Enter a whole number."),
-        ("name", "bob", "z" * 256, "Ensure this value has at most 255 characters (it has 256)."),
-        ("name", u"ȻħȺɍłɇs", "z   ", "The name field must be at least 2 characters long."),
+        ("gender", "f", "not a gender", u"Select a valid choice. not a gender is not one of the available choices."),
+        ("level_of_education", "none", u"ȻħȺɍłɇs", u"Select a valid choice. ȻħȺɍłɇs is not one of the available choices."),
+        ("country", "GB", "XY", u"Select a valid choice. XY is not one of the available choices."),
+        ("year_of_birth", 2009, "not_an_int", u"Enter a whole number."),
+        ("name", "bob", "z" * 256, u"Ensure this value has at most 255 characters (it has 256)."),
+        ("name", u"ȻħȺɍłɇs", "z   ", u"The name field must be at least 2 characters long."),
         ("language", "Creole"),
         ("goals", "Smell the roses"),
         ("mailing_address", "Sesame Street"),
@@ -323,11 +323,13 @@ class TestAccountAPI(UserAPITestCase):
         if fails_validation_value:
             error_response = self.send_patch(client, {field: fails_validation_value}, expected_status=400)
             self.assertEqual(
-                "Value '{0}' is not valid for field '{1}'.".format(fails_validation_value, field),
+                u"Value '{0}' is not valid for field '{1}'.".format(fails_validation_value, field),
                 error_response.data["field_errors"][field]["user_message"]
             )
             self.assertEqual(
-                developer_validation_message,
+                u"Value '{value}' is not valid for field '{field}': {messages}".format(
+                    value=fails_validation_value, field=field, messages=[developer_validation_message]
+                ),
                 error_response.data["field_errors"][field]["developer_message"]
             )
         else:

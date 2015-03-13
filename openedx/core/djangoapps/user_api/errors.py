@@ -92,7 +92,7 @@ class PreferenceValidationError(PreferenceRequestError):
 
 class PreferenceUpdateError(PreferenceRequestError):
     """
-    An update to the account failed. More detailed information is present in developer_message,
+    An update to a user preference failed. More detailed information is present in developer_message,
     and depending on the type of error encountered, there may also be a non-null user_message field.
     """
     def __init__(self, developer_message, user_message=None):

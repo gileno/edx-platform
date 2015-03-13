@@ -27,56 +27,26 @@ class UserPreference(models.Model):
         unique_together = ("user", "key")
 
     @classmethod
-    def set_preference(cls, user, preference_key, preference_value):
-        """Sets the user preference for a given key, creating it if it doesn't exist.
+    def get_value(cls, user, preference_key):
+        """Gets the user preference value for a given key.
+
+        Note:
+            This method provides no authorization of access to the user preference.
+            Consider using user_api.preferences.api.get_user_preference instead if
+            this is part of a REST API request.
 
         Arguments:
             user (User): The user whose preference should be set.
             preference_key (string): The key for the user preference.
-            preference_value (string): The value to be stored. Non-strings can
-                be passed and will be converted to strings.
-
-        Raises:
-            IntegrityError: the update causes a database integrity error.
-        """
-        user_preference, _ = cls.objects.get_or_create(user=user, key=preference_key)
-        user_preference.value = preference_value
-        user_preference.save()
-
-    @classmethod
-    def get_preference(cls, user, preference_key, default=None):
-        """Gets the user preference value for a given key
-
-        Arguments:
-            user (User): The user whose preference should be set.
-            preference_key (string): The key for the user preference.
-            default (object): The default value to return if the preference is not set.
 
         Returns:
-            The user preference value, or the specified default if one is not set.
+            The user preference value, or None if one is not set.
         """
         try:
             user_preference = cls.objects.get(user=user, key=preference_key)
             return user_preference.value
         except cls.DoesNotExist:
-            return default
-
-    @classmethod
-    def delete_preference(cls, user, preference_key):
-        """Deletes the user preference value for a given key
-
-        Arguments:
-            user (User): The user whose preference should be set.
-            preference_key (string): The key for the user preference.
-
-        Raises:
-            PreferenceNotFound: No preference was found with the given key.
-        """
-        try:
-            user_preference = cls.objects.get(user=user, key=preference_key)
-        except cls.DoesNotExist:
-            raise PreferenceNotFound()
-        user_preference.delete()
+            return None
 
 
 class UserCourseTag(models.Model):

@@ -92,7 +92,10 @@ class PreferencesView(APIView):
         except (UserNotFound, UserNotAuthorized):
             return Response(status=status.HTTP_404_NOT_FOUND)
         except PreferenceValidationError as error:
-            return Response({"field_errors": error.preference_errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"field_errors": error.preference_errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except PreferenceUpdateError as error:
             return Response(
                 {
@@ -165,8 +168,13 @@ class PreferencesDetailView(APIView):
         except (UserNotFound, UserNotAuthorized):
             return Response(status=status.HTTP_404_NOT_FOUND)
         except PreferenceValidationError as error:
-            developer_message = error.preference_errors[preference_key]["developer_message"]
-            return Response(developer_message, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "developer_message": error.preference_errors[preference_key]["developer_message"],
+                    "user_message": error.preference_errors[preference_key]["user_message"]
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except PreferenceUpdateError as error:
             return Response(
                 {

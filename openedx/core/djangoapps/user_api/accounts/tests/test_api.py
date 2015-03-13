@@ -79,7 +79,7 @@ class TestAccountApi(TestCase):
         self.assertEqual(self.different_user.email, account_settings["email"])
 
     def test_get_user_not_found(self):
-        """Test that AccountUserNotFound is thrown if there is no user with username."""
+        """Test that UserNotFound is thrown if there is no user with username."""
         with self.assertRaises(UserNotFound):
             get_account_settings(self.user, username="does_not_exist")
 
@@ -101,7 +101,7 @@ class TestAccountApi(TestCase):
             update_account_settings(self.different_user, {"name": "Pluto"}, username=self.user.username)
 
     def test_update_user_not_found(self):
-        """Test that AccountUserNotFound is thrown if there is no user with username."""
+        """Test that UserNotFound is thrown if there is no user with username."""
         with self.assertRaises(UserNotFound):
             update_account_settings(self.user, {}, username="does_not_exist")
 
@@ -126,18 +126,13 @@ class TestAccountApi(TestCase):
             "email": "not an email address"
         }
 
-        error_thrown = False
-        try:
+        with self.assertRaises(AccountValidationError) as context_manager:
             update_account_settings(self.user, naughty_update)
-        except AccountValidationError as response:
-            error_thrown = True
-            field_errors = response.field_errors
-            self.assertEqual(3, len(field_errors))
-            self.assertEqual("This field is not editable via this API", field_errors["username"]["developer_message"])
-            self.assertIn("Select a valid choice", field_errors["gender"]["developer_message"])
-            self.assertIn("Valid e-mail address required.", field_errors["email"]["developer_message"])
-
-        self.assertTrue(error_thrown, "No AccountValidationError was thrown")
+        field_errors = context_manager.exception.field_errors
+        self.assertEqual(3, len(field_errors))
+        self.assertEqual("This field is not editable via this API", field_errors["username"]["developer_message"])
+        self.assertIn("Select a valid choice", field_errors["gender"]["developer_message"])
+        self.assertIn("Valid e-mail address required.", field_errors["email"]["developer_message"])
 
     @patch('django.core.mail.send_mail')
     @patch('student.views.render_to_string', Mock(side_effect=mock_render_to_string, autospec=True))
@@ -148,14 +143,9 @@ class TestAccountApi(TestCase):
             "name": "Mickey Mouse",
             "email": "seems_ok@sample.com"
         }
-        error_thrown = False
-        try:
+        with self.assertRaises(AccountUpdateError) as context_manager:
             update_account_settings(self.user, less_naughty_update)
-        except AccountUpdateError as response:
-            error_thrown = True
-            self.assertIn("Error thrown from do_email_change_request", response.developer_message)
-
-        self.assertTrue(error_thrown, "No AccountUpdateError was thrown")
+        self.assertIn("Error thrown from do_email_change_request", context_manager.exception.developer_message)
 
         # Verify that the name change happened, even though the attempt to send the email failed.
         account_settings = get_account_settings(self.user)
@@ -172,14 +162,10 @@ class TestAccountApi(TestCase):
             "name": "Mickey Mouse",
             "email": "ok@sample.com"
         }
-        error_thrown = False
-        try:
-            update_account_settings(self.user, update_will_fail)
-        except AccountUpdateError as response:
-            error_thrown = True
-            self.assertIn("Error thrown when saving account updates", response.developer_message)
 
-        self.assertTrue(error_thrown, "No AccountUpdateError was thrown")
+        with self.assertRaises(AccountUpdateError) as context_manager:
+            update_account_settings(self.user, update_will_fail)
+        self.assertIn("Error thrown when saving account updates", context_manager.exception.developer_message)
 
         # Verify that no email change request was initiated.
         pending_change = PendingEmailChange.objects.filter(user=self.user)

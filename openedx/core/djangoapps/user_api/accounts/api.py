@@ -1,4 +1,3 @@
-from django.contrib.auth.models import User
 from django.utils.translation import ugettext as _
 from django.db import transaction, IntegrityError
 import datetime
@@ -15,16 +14,16 @@ from ..errors import (
     AccountEmailInvalid, AccountUserAlreadyExists,
     UserAPIInternalError, UserAPIRequestError, UserNotFound, UserNotAuthorized
 )
+from ..forms import PasswordResetFormNoActive
 from ..helpers import intercept_errors
 from ..models import UserPreference
-from .serializers import AccountLegacyProfileSerializer, AccountUserSerializer
-from ..forms import PasswordResetFormNoActive
 
 from . import (
     ACCOUNT_VISIBILITY_PREF_KEY, ALL_USERS_VISIBILITY,
     EMAIL_MIN_LENGTH, EMAIL_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH,
     USERNAME_MIN_LENGTH, USERNAME_MAX_LENGTH
 )
+from .serializers import AccountLegacyProfileSerializer, AccountUserSerializer
 
 
 @intercept_errors(UserAPIInternalError, ignore_errors=[UserAPIRequestError])
@@ -52,7 +51,7 @@ def get_account_settings(requesting_user, username=None, configuration=None, vie
          A dict containing account fields.
 
     Raises:
-         AccountUserNotFound: no user with username `username` exists (or `requesting_user.username` if
+         UserNotFound: no user with username `username` exists (or `requesting_user.username` if
             `username` is not specified)
          UserAPIInternalError: the operation failed due to an unexpected error.
     """
@@ -79,7 +78,7 @@ def get_account_settings(requesting_user, username=None, configuration=None, vie
 
     # Calling UserPreference directly because the requesting user may be different from existing_user
     # (and does not have to be is_staff).
-    profile_privacy = UserPreference.get_preference(existing_user, ACCOUNT_VISIBILITY_PREF_KEY)
+    profile_privacy = UserPreference.get_value(existing_user, ACCOUNT_VISIBILITY_PREF_KEY)
     privacy_setting = profile_privacy if profile_privacy else configuration.get('default_visibility')
 
     if privacy_setting == ALL_USERS_VISIBILITY:
@@ -156,7 +155,7 @@ def update_account_settings(requesting_user, update, username=None):
         for read_only_field in read_only_fields:
             field_errors[read_only_field] = {
                 "developer_message": "This field is not editable via this API",
-                "user_message": _("Field '{field_name}' cannot be edited.".format(field_name=read_only_field))
+                "user_message": _(u"Field '{field_name}' cannot be edited.").format(field_name=read_only_field)
             }
             del update[read_only_field]
 
@@ -172,7 +171,7 @@ def update_account_settings(requesting_user, update, username=None):
             validate_new_email(existing_user, new_email)
         except ValueError as err:
             field_errors["email"] = {
-                "developer_message": "Error thrown from validate_new_email: '{}'".format(err.message),
+                "developer_message": u"Error thrown from validate_new_email: '{}'".format(err.message),
                 "user_message": err.message
             }
 
@@ -193,7 +192,7 @@ def update_account_settings(requesting_user, update, username=None):
                 meta['old_names'] = []
             meta['old_names'].append([
                 old_name,
-                "Name change requested through account API by {0}".format(requesting_user.username),
+                u"Name change requested through account API by {0}".format(requesting_user.username),
                 datetime.datetime.now(UTC).isoformat()
             ])
             existing_user_profile.set_meta(meta)
@@ -201,7 +200,7 @@ def update_account_settings(requesting_user, update, username=None):
 
     except Exception as err:
         raise AccountUpdateError(
-            "Error thrown when saving account updates: '{}'".format(err.message)
+            u"Error thrown when saving account updates: '{}'".format(err.message)
         )
 
     # And try to send the email change request if necessary.
@@ -210,7 +209,7 @@ def update_account_settings(requesting_user, update, username=None):
             do_email_change_request(existing_user, new_email)
         except ValueError as err:
             raise AccountUpdateError(
-                "Error thrown from do_email_change_request: '{}'".format(err.message),
+                u"Error thrown from do_email_change_request: '{}'".format(err.message),
                 user_message=err.message
             )
 
@@ -235,16 +234,15 @@ def _add_serializer_errors(update, serializer, field_errors):
     """
     if not serializer.is_valid():
         errors = serializer.errors
-        for key, value in errors.iteritems():
-            if isinstance(value, list) and len(value) > 0:
-                developer_message = value[0]
-            else:
-                developer_message = "Invalid value: {field_value}'".format(field_value=update[key])
+        for key, error in errors.iteritems():
+            field_value = update[key]
             field_errors[key] = {
-                "developer_message": developer_message,
-                "user_message": _("Value '{field_value}' is not valid for field '{field_name}'.".format(
-                    field_value=update[key], field_name=key)
-                )
+                "developer_message": u"Value '{field_value}' is not valid for field '{field_name}': {error}".format(
+                    field_value=field_value, field_name=key, error=error
+                ),
+                "user_message": _(u"Value '{field_value}' is not valid for field '{field_name}'.").format(
+                    field_value=field_value, field_name=key
+                ),
             }
 
     return field_errors
@@ -383,7 +381,7 @@ def request_password_change(email, orig_host, is_secure):
         None
 
     Raises:
-        AccountUserNotFound
+        UserNotFound
         AccountRequestError
         UserAPIInternalError: the operation failed due to an unexpected error.
     """

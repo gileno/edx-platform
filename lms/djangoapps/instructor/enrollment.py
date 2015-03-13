@@ -81,7 +81,7 @@ def get_user_email_language(user):
     """
     # Calling UserPreference directly instead of get_user_preference because the user requesting the
     # information is not "user" and also may not have is_staff access.
-    return UserPreference.get_preference(user, LANGUAGE_KEY)
+    return UserPreference.get_value(user, LANGUAGE_KEY)
 
 
 def enroll_email(course_id, student_email, auto_enroll=False, email_students=False, email_params=None, language=None):
