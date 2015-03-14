@@ -80,6 +80,9 @@
             'js/student_account/models/RegisterModel': 'js/student_account/models/RegisterModel',
             'js/student_account/views/RegisterView': 'js/student_account/views/RegisterView',
             'js/student_account/views/AccessView': 'js/student_account/views/AccessView',
+            'js/student_account/models/account_settings_models': 'js/student_account/models/account_settings_models',
+            'js/student_account/views/account_settings_view': 'js/student_account/views/account_settings_view',
+            'js/student_account/views/account_settings_fields': 'js/student_account/views/account_settings_fields',
             'js/student_account/models/AccountSettingsModel': 'js/student_account/models/AccountSettingsModel',
             'js/student_account/views/AccountSettingsView': 'js/student_account/views/AccountSettingsView',
             'js/student_profile/profile': 'js/student_profile/profile',
@@ -418,13 +421,17 @@
                     'js/student_account/shoppingcart',
                 ]
             },
-            'js/student_account/models/AccountSettingsModel': {
+            'js/student_account/models/account_settings_models': {
                 exports: 'edx.student.account.AccountSettingsModel',
                 deps: ['backbone']
             },
-            'js/student_account/views/AccountSettingsView': {
-                exports: 'edx.student.account.settingsViews',
+            'js/student_account/views/account_settings_view': {
+                exports: 'edx.student.account.AccountSettingsView',
                 deps: [ 'jquery', 'underscore', 'backbone',  'gettext']
+            },
+            'js/student_account/views/account_settings_fields': {
+                exports: 'edx.student.account.fieldViews',
+                deps: [ 'jquery', 'underscore', 'backbone', 'gettext' ]
             },
             'js/verify_student/models/verification_model': {
                 exports: 'edx.verify_student.VerificationModel',

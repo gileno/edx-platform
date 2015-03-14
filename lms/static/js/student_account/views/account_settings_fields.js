@@ -1,7 +1,7 @@
 ;(function (define, undefined) {
     'use strict';
     define([
-        'gettext', 'jquery', 'underscore', 'backbone', 'backbone-super',
+        'gettext', 'jquery', 'underscore', 'backbone', 'backbone-super'
     ], function (gettext, $, _, Backbone) {
 
         var messageRevertDelay = 4000;
@@ -22,7 +22,7 @@
 
             initialize: function (options) {
 
-                this.template = _.template($(this.templateSelector).text()),
+                this.template = _.template($(this.templateSelector).text());
 
                 this.helpMessage = this.options.helpMessage || '';
 
@@ -195,9 +195,9 @@
                     title: this.options.title,
                     required: this.options.required,
                     selectOptions: this.options.options,
-                    message: this.helpMessage,
+                    message: this.helpMessage
                 }));
-                this.updateValueInField()
+                this.updateValueInField();
                 return this;
             },
 
@@ -214,7 +214,7 @@
                 attributes[this.options.valueAttribute] = this.fieldValue();
                 this.saveAttributes(attributes);
 
-            },
+            }
         });
 
         AccountSettingsFieldViews.LinkFieldView = AccountSettingsFieldViews.FieldView.extend({
