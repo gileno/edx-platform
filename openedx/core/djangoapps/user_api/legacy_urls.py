@@ -40,4 +40,9 @@ if settings.FEATURES.get('ENABLE_COMBINED_LOGIN_REGISTRATION'):
             name="user_api_registration"),
         url(r'^v1/account/password_reset/$', user_api_views.PasswordResetView.as_view(),
             name="user_api_password_reset"),
+        url(
+            r'^v1/account/registration/(?P<backend>[^/]+)/$',
+            user_api_views.ThirdPartyRegistrationView.as_view(),
+            name="user_api_third_party_registration"
+        ),
     )

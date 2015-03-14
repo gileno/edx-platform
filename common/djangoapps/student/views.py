@@ -1167,6 +1167,8 @@ def login_user(request, error=""):  # pylint: disable-msg=too-many-statements,un
 @social_utils.strategy("social:complete")
 def login_oauth_token(request, backend):
     """
+    DEPRECATED - Note that this endpoint is deprecated.  Please use AccessTokenExchangeView instead.
+
     Authenticate the client using an OAuth access token by using the token to
     retrieve information from a third party and matching that information to an
     existing user.
@@ -1601,6 +1603,8 @@ def set_marketing_cookie(request, response):
 @csrf_exempt
 def create_account(request, post_override=None):
     """
+    DEPRECATED - Note that this endpoint is deprecated.  Please use RegistrationView instead.
+
     JSON call to create new edX account.
     Used by form in signup_modal.html, which is included into navigation.html
     """
