@@ -11,15 +11,13 @@ from django.http import (
 from django.shortcuts import redirect
 from django.http import HttpRequest
 from django.core.urlresolvers import reverse, resolve
-from django.core.mail import send_mail
 from django.utils.translation import ugettext as _
 from django_future.csrf import ensure_csrf_cookie
-from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys import InvalidKeyError
-from edxmako.shortcuts import render_to_response, render_to_string
+from edxmako.shortcuts import render_to_response
 from microsite_configuration import microsite
 from embargo import api as embargo_api
 import third_party_auth
@@ -33,7 +31,6 @@ from student.views import (
 )
 
 from openedx.core.djangoapps.user_api.api import account as account_api
-from openedx.core.djangoapps.user_api.api import profile as profile_api
 from util.bad_request_rate_limiter import BadRequestRateLimiter
 
 from student_account.helpers import auth_pipeline_urls

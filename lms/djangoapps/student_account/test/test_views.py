@@ -19,10 +19,7 @@ from util.testing import UrlResetMixin
 from third_party_auth.tests.testutil import simulate_running_pipeline
 from embargo.test_utils import restrict_course
 from openedx.core.djangoapps.user_api.api import account as account_api
-from openedx.core.djangoapps.user_api.api import profile as profile_api
-from xmodule.modulestore.tests.django_utils import (
-    ModuleStoreTestCase, mixed_store_config
-)
+from xmodule.modulestore.tests.django_utils import ModuleStoreTestCase
 from xmodule.modulestore.tests.factories import CourseFactory
 from student.tests.factories import CourseModeFactory
 
