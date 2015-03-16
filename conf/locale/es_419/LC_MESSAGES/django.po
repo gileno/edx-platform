@@ -109,6 +109,7 @@
 # Rubén Torres <r.torres@usal.es>, 2015
 # Santiago Salkin <salkin.santiago@gmail.com>, 2014
 # Sarina Canelake <sarina@edx.org>, 2014-2015
+# UAbierta Universidad de Chile <uabierta@u.uchile.cl>, 2015
 # Valeria Freire <valtodopds@hotmail.com>, 2014-2015
 # #-#-#-#-#  mako-studio.po (edx-platform)  #-#-#-#-#
 # edX translation file
@@ -9809,7 +9810,7 @@ msgstr "Instituciones"
 
 #: lms/templates/navigation.html
 msgid "Register Now"
-msgstr ""
+msgstr "Registrarse"
 
 #: lms/templates/notes.html lms/templates/textannotation.html
 #: lms/templates/videoannotation.html

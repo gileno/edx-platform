@@ -26,6 +26,7 @@
 # Jeremie Sicsic <jsicsic@gmail.com>, 2013
 # Julien Colmonts <julien.colmonts@student.uclouvain.be>, 2014
 # Julien Rolland <julien.rolland33@gmail.com>, 2013
+# Justine Seran, 2015
 # laurentFUN <laurent.at.fun@gmail.com>, 2014
 # Marco Morales, 2014
 # moocit-france <contact@moocit.fr>, 2014-2015
@@ -98,6 +99,7 @@
 # Julien Rolland <julien.rolland33@gmail.com>, 2013
 # Julien Colmonts <julien.colmonts@student.uclouvain.be>, 2014
 # Julien Rolland <julien.rolland33@gmail.com>, 2013
+# Justine Seran, 2015
 # laurentFUN <laurent.at.fun@gmail.com>, 2014
 # Leslie Bordonné <leslie@bordonne.com>, 2015
 # madmarsu <madmarsu@gmail.com>, 2014
