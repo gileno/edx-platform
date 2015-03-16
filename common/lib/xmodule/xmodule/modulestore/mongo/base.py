@@ -400,6 +400,9 @@ class CachingDescriptorSystem(MakoDescriptorSystem, EditInfoRuntimeMixin):
         return []
 
 
+new_contract('CachingDescriptorSystem', CachingDescriptorSystem)
+
+
 # The only thing using this w/ wildcards is contentstore.mongo for asset retrieval
 def location_to_query(location, wildcard=True, tag='i4x'):
     """
@@ -852,6 +855,7 @@ class MongoModuleStore(ModuleStoreDraftAndPublished, ModuleStoreWriteBase, Mongo
 
         return data
 
+    @contract(course_key=CourseKey, item=UsageKey, apply_cached_metadata=bool, using_descriptor_system="None|CachingDescriptorSystem")
     def _load_item(self, course_key, item, data_cache, apply_cached_metadata=True, using_descriptor_system=None):
         """
         Load an XModuleDescriptor from item, using the children stored in data_cache
