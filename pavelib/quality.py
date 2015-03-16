@@ -187,7 +187,7 @@ def run_pep8(options):
 
     # Also write the number of violations to a file
     with open(Env.METRICS_DIR / "pep8", "w") as f:
-        f.write(violations_count_str)
+        f.write(violations_count_str + '\n')
         f.write(violations_str)
 
     # Fail if any violations are found
@@ -264,15 +264,15 @@ def run_quality(options):
     pep8_reports = u' '.join(pep8_files)
 
     try:
-        violations_str = None
-        with open(pep8_reports, 'r') as f:
-            violations_list = f.readlines()
-            violations_str = '\n'.join(violations_list)
+        # violations_str = None
+        # with open(pep8_reports, 'r') as f:
+        #     violations_list = f.readlines()
+        #     violations_str = '\n'.join(violations_list)
 
-        if violations_str:
-            raise BuildFailure(
-                'Number of pep8 violations should be 0; found these violations:\n' + violations_str
-            )
+        # if violations_str:
+        #     raise BuildFailure(
+        #         'Number of pep8 violations should be 0; found these violations:\n' + violations_str
+        #     )
 
         sh(
             "diff-quality --violations=pep8 {pep8_reports} {percentage_string} "
